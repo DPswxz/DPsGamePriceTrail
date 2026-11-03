@@ -76,7 +76,7 @@ app.post('/api/settings', (request, response) => {
 app.get('/health', (_request, response) => {
   const platforms = Object.fromEntries(Object.keys(PLATFORM_CONFIG).map((platform) => {
     const data = nintendoCollector.get(platform);
-    return [platform, backgroundRefresh.status('nintendo', data)];
+    return [platform, nintendoCollector.status(platform)];
   }));
   const ps5Data = ps5Collector.get();
   platforms.ps5 = backgroundRefresh.status('ps5', ps5Data);
@@ -136,7 +136,8 @@ for (const [key, collector, method, get] of rankingSources) {
     if (!data) backgroundRefresh.start(key, () => collector[method]());
     if (!data) return response.status(503).json({ ok: false, pending: true, error: '后台正在准备数据' });
     response.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=900');
-    return response.json({ ok: true, ...data, ...backgroundRefresh.status(key, data) });
+    const status = key === 'nintendo' ? nintendoCollector.status(request.query.platform || 'switch1') : backgroundRefresh.status(key, data);
+    return response.json({ ok: true, ...data, ...status });
   });
   app.post('/api/' + key + '/refresh', (_request, response) => {
     const force = _request.body?.force === true;

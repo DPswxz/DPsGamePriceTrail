@@ -2,6 +2,8 @@ import { chromium } from 'playwright';
 import { access, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { nintendoCovers, nintendoImageUrl } from './nintendo-cover.mjs';
 import { describeNintendoRanking } from './nintendo-ranking-source.mjs';
+import { DailyRefresh } from './daily-refresh.mjs';
+import { BackgroundRefresh } from './background-refresh.mjs';
 import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 
@@ -116,10 +118,14 @@ export class NintendoCollector {
     this.refreshMinutes = Math.max(5, Number(refreshMinutes) || 15);
     this.cache = {};
     this.refreshing = null;
+    this.hkSchedule = new DailyRefresh(`${this.cacheFile}.hk-schedule.json`);
+    this.platformRefresh = new BackgroundRefresh({ stateFile: `${this.cacheFile}.refresh-status.json` });
   }
 
   async init() {
     await mkdir(path.dirname(this.cacheFile), { recursive: true });
+    await this.hkSchedule.init();
+    await this.platformRefresh.init();
     try {
       this.cache = JSON.parse(await readFile(this.cacheFile, 'utf8'));
     } catch {
@@ -144,6 +150,10 @@ export class NintendoCollector {
     return describeNintendoRanking(this.cache[platform] || null, platform);
   }
 
+  status(platform) {
+    return this.platformRefresh.status(platform, this.get(platform));
+  }
+
   async refreshAll({ force = false } = {}) {
     if (this.refreshing) return this.refreshing;
     const maxAge = this.refreshMinutes * 60 * 1000;
@@ -160,31 +170,36 @@ export class NintendoCollector {
   }
 
   async #collectBoth() {
-    const browser = await launchBrowser();
+    const refreshHk = await this.hkSchedule.claim();
+    const platforms = Object.keys(PLATFORM_CONFIG).filter(platform => PLATFORM_CONFIG[platform].region !== 'hk' || refreshHk);
+    // 港服到点时先采集，不等待日服的逐条语言查询。
+    if (refreshHk) platforms.sort((a, b) => Number(PLATFORM_CONFIG[b].region === 'hk') - Number(PLATFORM_CONFIG[a].region === 'hk'));
+    const browserPromise = launchBrowser();
     const errors = [];
-    const nextCache = { ...this.cache };
     try {
-      for (const platform of Object.keys(PLATFORM_CONFIG)) {
-        try {
-          nextCache[platform] = describeNintendoRanking(await this.#collectPlatform(browser, platform), platform);
-        } catch (error) {
-          errors.push(`${platform}: ${error.message}`);
-          if (this.cache[platform]) {
-            nextCache[platform] = {
-              ...this.cache[platform],
-              stale: true,
-              lastError: error.message
-            };
+      for (const platform of platforms) {
+        // 只有实际进入采集的平台才记录尝试，跳过的港服不受日服状态影响。
+        this.platformRefresh.start(platform, async () => {
+          try {
+            this.cache[platform] = describeNintendoRanking(await this.#collectPlatform(await browserPromise, platform), platform);
+          } catch (error) {
+            errors.push(`${platform}: ${error.message}`);
+            if (this.cache[platform]) {
+              this.cache[platform] = { ...this.cache[platform], stale: true, lastError: error.message };
+            }
+            throw error;
+          } finally {
+            await this.#save();
           }
-        }
+        }, { scheduled: true });
+        await this.platformRefresh.tasks.get(platform);
         await delay(2000);
       }
     } finally {
-      await browser.close();
+      const browser = await browserPromise.catch(() => null);
+      await browser?.close();
     }
-    this.cache = nextCache;
-    await this.#save();
-    if (errors.length === Object.keys(PLATFORM_CONFIG).length && !Object.keys(this.cache).length) {
+    if (errors.length === platforms.length && !Object.keys(this.cache).length) {
       throw new Error(`任天堂榜单采集失败：${errors.join('；')}`);
     }
     return this.cache;
