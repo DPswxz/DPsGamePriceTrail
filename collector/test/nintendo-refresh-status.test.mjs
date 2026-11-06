@@ -14,7 +14,7 @@ async function fixture(t){
  const dir=await mkdtemp(path.join(os.tmpdir(),'nintendo-status-'));t.after(()=>rm(dir,{recursive:true,force:true}));
  const file=path.join(dir,'cache.json'),old='2026-11-03T04:00:00+08:00';
  const cache=Object.fromEntries(Object.keys(PLATFORM_CONFIG).map(platform=>[platform,{platform,updatedAt:old,stale:false,games:[{id:'fixture',price:100}]}]));
- await writeFile(file,JSON.stringify(cache));const collector=new NintendoCollector({cacheFile:file});await collector.init();
+ await writeFile(file,JSON.stringify(cache));const collector=new NintendoCollector({cacheFile:file});await collector.init();collector.jpSchedule.claim=async()=>true;
  collector.save=()=>writeFile(file,JSON.stringify(collector.cache));
  return {collector,file,old};
 }
@@ -47,4 +47,10 @@ test('日服采集进行中时不把港服显示为正在刷新',async t=>{
  const task=collect.call(collector);for(let i=0;i<10&&!release;i++)await Promise.resolve();
  assert.equal(collector.status('switch1').refreshState,'refreshing');
  assert.equal(collector.status('switch2_hk').refreshState,'success');release();await task;
+});
+
+test('日服和港服均未到执行时间时不采集、不修改状态',async t=>{
+ const {collector}=await fixture(t);collector.jpSchedule.claim=async()=>false;collector.hkSchedule.claim=async()=>false;
+ const before=JSON.stringify(collector.cache);collector.collectPlatform=async()=>{throw Error('Must not collect outside schedule')};
+ await collect.call(collector);assert.equal(JSON.stringify(collector.cache),before);assert.equal(collector.platformRefresh.records.size,0);
 });

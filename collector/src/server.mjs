@@ -15,6 +15,7 @@ import { SteamCollector } from './steam.mjs';
 import { SteamGlobalCollector } from './steam-global.mjs';
 import { BackgroundRefresh } from './background-refresh.mjs';
 import { nextHourlyRefresh } from './hourly-schedule.mjs';
+import { DailyRefresh, SixHourlyRefresh } from './daily-refresh.mjs';
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 const collectorRoot = path.resolve(currentDir, '..');
@@ -127,25 +128,38 @@ const rankingSources = [
   ['steam', steamCollector, 'refresh', () => steamCollector.get()],
   ['steam-global', steamGlobalCollector, 'refresh', () => steamGlobalCollector.get()]
 ];
+const dailySchedules = new Map([
+  ['ps5', new DailyRefresh(`${ps5Collector.cacheFile}.daily-schedule.json`)],
+  ['ps5-jp', new DailyRefresh(`${ps5JpCollector.cacheFile}.daily-schedule.json`)],
+  ['steam', new SixHourlyRefresh(`${steamCollector.cacheFile}.six-hour-schedule.json`)],
+  ['steam-global', new SixHourlyRefresh(`${steamGlobalCollector.cacheFile}.six-hour-schedule.json`)]
+]);
+async function queueRankingRefresh(key, collector, method, { force = false, scheduled = false } = {}) {
+  if (backgroundRefresh.tasks.has(key)) return false;
+  // 先检查各平台的执行计划，跳过时不改变上次真实采集状态。
+  const daily = dailySchedules.get(key);
+  if (daily && !await daily.claim()) return false;
+  return backgroundRefresh.start(key, () => collector[method]({ force }), { scheduled });
+}
 for (const [key, collector, method, get] of rankingSources) {
-  app.get('/api/' + key + '/rankings', (request, response) => {
+  app.get('/api/' + key + '/rankings', async (request, response) => {
     if (key === 'nintendo' && !PLATFORM_CONFIG[request.query.platform || 'switch1']) {
       return response.status(400).json({ ok: false, error: '无效的任天堂平台' });
     }
     const data = get(request);
-    if (!data) backgroundRefresh.start(key, () => collector[method]());
+    if (!data) await queueRankingRefresh(key, collector, method);
     if (!data) return response.status(503).json({ ok: false, pending: true, error: '后台正在准备数据' });
     response.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=900');
     const status = key === 'nintendo' ? nintendoCollector.status(request.query.platform || 'switch1') : backgroundRefresh.status(key, data);
     return response.json({ ok: true, ...data, ...status });
   });
-  app.post('/api/' + key + '/refresh', (_request, response) => {
+  app.post('/api/' + key + '/refresh', async (_request, response) => {
     const force = _request.body?.force === true;
     const local = ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(_request.socket.remoteAddress)
       && !_request.headers.origin && !_request.headers['x-forwarded-for'];
     if (force && !local) return response.status(403).json({ ok: false, error: '立即刷新仅限服务器本机操作' });
-    const queued = (force || !get(_request)) && backgroundRefresh.start(
-      key, () => collector[method]({ force }), { scheduled: force });
+    const queued = (force || !get(_request)) && await queueRankingRefresh(
+      key, collector, method, { force, scheduled: force });
     response.status(202).json({ ok: true, queued: Boolean(queued), cached: true, nextRefreshAt });
   });
 }
@@ -187,6 +201,7 @@ if (process.env.SERVE_FRONTEND !== '0') {
 }
 
 await Promise.all([nintendoCollector.init(), ps5Collector.init(), ps5JpCollector.init(), steamCollector.init(), steamGlobalCollector.init()]);
+await Promise.all([...dailySchedules.values()].map(schedule => schedule.init()));
 // 用已有静态快照补齐旧档案名称；只补资料，不改历史价格、时间或在榜状态。
 for(const [file,platform] of [['nintendo-data.js',null],['ps5-data.js','ps5_hk'],['ps5-jp-data.js','ps5_jp'],['steam-data.js','steam'],['steam-global-data.js','steam_global']]){
   try{
@@ -205,7 +220,15 @@ function capturePriceHistory() {
 }
 await capturePriceHistory();
 priceHistory.refreshCatalogTitles(game=>titleTranslator.decorate({...game,price:0}).cn);
-const stopArchiveMetadata=startArchiveMetadata(priceHistory,titleTranslator);
+const stopArchiveMetadata=startArchiveMetadata(priceHistory,titleTranslator,{
+  // 档案资料补全也只在对应榜单实际采集期间访问官方。
+  allowLookup: platform => platform.startsWith('ps5')
+    ? backgroundRefresh.tasks.has(platform === 'ps5_hk' ? 'ps5' : 'ps5-jp')
+    : platform.startsWith('steam')
+      ? backgroundRefresh.tasks.has(platform === 'steam_global' ? 'steam-global' : 'steam')
+      : platform.startsWith('switch') && !platform.endsWith('_hk')
+        ? nintendoCollector.platformRefresh.tasks.has(platform) : true
+});
 function translationPayload() {
   return [Object.keys(PLATFORM_CONFIG).map(key => nintendoCollector.get(key)), ps5Collector.get(), ps5JpCollector.get(), steamCollector.get(), steamGlobalCollector.get()];
 }
@@ -229,7 +252,7 @@ if (process.env.COLLECT_ON_START !== '0') {
     const hasCache = key === 'nintendo'
       ? Object.keys(PLATFORM_CONFIG).every(platform => collector.get(platform))
       : get({ query: {} });
-    if (!hasCache) backgroundRefresh.start(key, () => collector[method]());
+    if (!hasCache) await queueRankingRefresh(key, collector, method);
   }
 }
 
@@ -261,7 +284,8 @@ function scheduleRefresh() {
     scheduleRefresh();
     console.log(`[${new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}] 整点后台采集...`);
     for (const [key, collector, method] of rankingSources) {
-      backgroundRefresh.start(key, () => collector[method]({ force: true }), { scheduled: true });
+      queueRankingRefresh(key, collector, method, { force: true, scheduled: true })
+        .catch(error => console.error(`${key} 刷新计划读取失败：${error.message}`));
     }
   }, deadline - now);
 }

@@ -2,7 +2,7 @@ import { chromium } from 'playwright';
 import { access, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { nintendoCovers, nintendoImageUrl } from './nintendo-cover.mjs';
 import { describeNintendoRanking } from './nintendo-ranking-source.mjs';
-import { DailyRefresh } from './daily-refresh.mjs';
+import { DailyRefresh, SixHourlyRefresh } from './daily-refresh.mjs';
 import { BackgroundRefresh } from './background-refresh.mjs';
 import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -119,12 +119,14 @@ export class NintendoCollector {
     this.cache = {};
     this.refreshing = null;
     this.hkSchedule = new DailyRefresh(`${this.cacheFile}.hk-schedule.json`);
+    this.jpSchedule = new SixHourlyRefresh(`${this.cacheFile}.jp-schedule.json`);
     this.platformRefresh = new BackgroundRefresh({ stateFile: `${this.cacheFile}.refresh-status.json` });
   }
 
   async init() {
     await mkdir(path.dirname(this.cacheFile), { recursive: true });
     await this.hkSchedule.init();
+    await this.jpSchedule.init();
     await this.platformRefresh.init();
     try {
       this.cache = JSON.parse(await readFile(this.cacheFile, 'utf8'));
@@ -171,7 +173,9 @@ export class NintendoCollector {
 
   async #collectBoth() {
     const refreshHk = await this.hkSchedule.claim();
-    const platforms = Object.keys(PLATFORM_CONFIG).filter(platform => PLATFORM_CONFIG[platform].region !== 'hk' || refreshHk);
+    const refreshJp = await this.jpSchedule.claim();
+    const platforms = Object.keys(PLATFORM_CONFIG).filter(platform => PLATFORM_CONFIG[platform].region === 'hk' ? refreshHk : refreshJp);
+    if (!platforms.length) return this.cache;
     // 港服到点时先采集，不等待日服的逐条语言查询。
     if (refreshHk) platforms.sort((a, b) => Number(PLATFORM_CONFIG[b].region === 'hk') - Number(PLATFORM_CONFIG[a].region === 'hk'));
     const browserPromise = launchBrowser();

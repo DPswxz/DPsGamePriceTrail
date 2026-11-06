@@ -9,6 +9,12 @@ export function nextHongKongRefresh(now = Date.now()) {
   return deadline > now ? deadline : deadline + DAY_MS;
 }
 
+export function nextSixHourlyRefresh(now = Date.now()) {
+  const interval = 6 * 3600000;
+  const first = 4 * 3600000;
+  return (Math.floor((now + OFFSET_MS - first) / interval) + 1) * interval - OFFSET_MS + first;
+}
+
 // 执行前持久保存下一次时间，失败和重启均不会导致当天反复请求。
 export class DailyRefresh {
   constructor(file, now = () => Date.now()) {
@@ -26,14 +32,14 @@ export class DailyRefresh {
     } catch (error) {
       if (error.code !== 'ENOENT') throw error;
     }
-    this.nextAt = nextHongKongRefresh(this.now());
+    this.nextAt = this.nextRefresh(this.now());
     await this.save();
   }
 
   async claim() {
     const now = this.now();
     if (now < this.nextAt) return false;
-    this.nextAt = nextHongKongRefresh(now);
+    this.nextAt = this.nextRefresh(now);
     await this.save();
     return true;
   }
@@ -43,4 +49,10 @@ export class DailyRefresh {
     await writeFile(temporary, JSON.stringify({ nextAt: this.nextAt }) + '\n');
     await rename(temporary, this.file);
   }
+
+  nextRefresh(now) { return nextHongKongRefresh(now); }
+}
+
+export class SixHourlyRefresh extends DailyRefresh {
+  nextRefresh(now) { return nextSixHourlyRefresh(now); }
 }

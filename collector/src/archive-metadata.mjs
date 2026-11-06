@@ -33,7 +33,7 @@ export async function fetchArchiveMetadata(platform,id,fetcher=storeFetch){
   return {id,name:name.replace(/\s*[|｜].*$/,''),image,url,platform:'Switch'};
 }
 
-export function startArchiveMetadata(history,translator,{fetcher=storeFetch}={}){
+export function startArchiveMetadata(history,translator,{fetcher=storeFetch,allowLookup=()=>true}={}){
   let running=false,stopped=false;
   const getRetry=history.db.prepare('SELECT value FROM metadata WHERE key=?');
   const saveRetry=history.db.prepare('INSERT OR REPLACE INTO metadata VALUES(?,?)');
@@ -43,6 +43,7 @@ export function startArchiveMetadata(history,translator,{fetcher=storeFetch}={})
       history.restoreSharedMetadata();
       const groups=new Map();
       for(const row of history.missingMetadata().sort((a,b)=>Number(b.platform.endsWith('_hk'))-Number(a.platform.endsWith('_hk')))){
+        if(!allowLookup(row.platform))continue;
         const family=row.platform.startsWith('steam')?'steam':row.platform.startsWith('ps5')?row.platform:'switch';
         const key=`archive-lookup:${family}:${row.id}`;
         if(Number(getRetry.get(key)?.value||0)>Date.now())continue;
@@ -50,6 +51,7 @@ export function startArchiveMetadata(history,translator,{fetcher=storeFetch}={})
       }
       for(const [key,rows] of groups){
         if(stopped)break;
+        if(!allowLookup(rows[0].platform))continue;
         saveRetry.run(key,String(Date.now()+86400000));
         const game=await fetchArchiveMetadata(rows[0].platform,rows[0].id,fetcher).catch(()=>null);
         if(stopped)break;
