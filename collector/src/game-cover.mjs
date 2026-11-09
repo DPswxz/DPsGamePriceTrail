@@ -3,7 +3,7 @@ import sharp from 'sharp';
 import {mkdir,readFile,writeFile,rename} from 'node:fs/promises';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import { nintendoCovers, nintendoImageUrl } from './nintendo-cover.mjs';
+import { isNintendoPlaceholder, nintendoCovers, nintendoImageUrl } from './nintendo-cover.mjs';
 
 const hosts = new Set(['image.api.playstation.com', 'shared.fastly.steamstatic.com','shared.st.dl.eccdnx.com',
   'cdn.akamai.steamstatic.com', 'cdn.cloudflare.steamstatic.com', 'store-jp.nintendo.com',
@@ -22,6 +22,7 @@ export class GameCoverProxy {
     if(!this.cacheDir)return null;
     try{const file=this.diskPath(url),[body,metadata]=await Promise.all([readFile(file+'.jpg'),readFile(file+'.json','utf8')]);
       const result={...JSON.parse(metadata),body};
+      if (isNintendoPlaceholder(result.etag)) return null;
       if(result.etag!==`"${createHash('sha256').update(body).digest('hex')}"`)return null;
       return result;
     }catch{return null;}

@@ -18,6 +18,19 @@ async function fixture(t){
  collector.save=()=>writeFile(file,JSON.stringify(collector.cache));
  return {collector,file,old};
 }
+test('重启后修复缓存榜单中返回占位图的官方封面地址',async t=>{
+ const {file}=await fixture(t);
+ const cache=JSON.parse(await readFile(file,'utf8'));
+ const cover='https://store.nintendo.com.hk/media/catalog/product/9/9/99d3f9086b7b97984916c93456752d6981d56dcab942421cf71cd45836a62b72';
+ cache.switch2_hk.games=[{id:'70010000112485',image:cover+'_1793953093.jpg',price:47}];
+ await writeFile(file,JSON.stringify(cache));
+ const restarted=new NintendoCollector({cacheFile:file});
+ await restarted.init();
+ const image=restarted.get('switch2_hk').games[0].image;
+ assert.equal(image,'/assets/covers/ff7-rebirth-switch2-hk.jpg');
+ const jpeg=await readFile(new URL('../../dist'+image,import.meta.url));
+ assert.equal(jpeg.readUInt16BE(0),0xffd8);
+});
 test('日服每小时采集及失败都不能改变按计划跳过的港服状态',async t=>{
  const {collector,old}=await fixture(t);collector.hkSchedule.claim=async()=>false;
  collector.collectPlatform=async(_browser,platform)=>{assert.ok(!platform.endsWith('_hk'));throw Error('Japan unavailable')};

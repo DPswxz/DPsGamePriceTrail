@@ -1,6 +1,6 @@
 import { chromium } from 'playwright';
 import { access, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
-import { nintendoCovers, nintendoImageUrl } from './nintendo-cover.mjs';
+import { nintendoCovers, nintendoRankingCover } from './nintendo-cover.mjs';
 import { describeNintendoRanking } from './nintendo-ranking-source.mjs';
 import { DailyRefresh, SixHourlyRefresh } from './daily-refresh.mjs';
 import { BackgroundRefresh } from './background-refresh.mjs';
@@ -144,6 +144,12 @@ export class NintendoCollector {
         }
       }
       await this.#save();
+    }
+    for (const platform of ['switch1_hk', 'switch2_hk']) {
+      for (const game of this.cache[platform]?.games || []) {
+        try { if (game.image) game.image = nintendoRankingCover(game.image); }
+        catch { game.image = ''; }
+      }
     }
   }
 
@@ -311,15 +317,22 @@ export class NintendoCollector {
       })).then(items => items.filter(item => item.id && item.name && Number.isFinite(item.price) && item.price >= 0));
       if (products.length < 20) throw new Error(`官方港服榜单数量异常：仅 ${products.length} 条`);
 
-      const previousRanks = new Map((this.cache[platform]?.games || []).map(game => [game.id, game.rank]));
+      const previousGames = new Map((this.cache[platform]?.games || []).map(game => [game.id, game]));
       nintendoCovers.prime(await context.storageState(), await page.evaluate(() => navigator.userAgent));
-      for (const product of products) {
-        try { product.image = product.image ? nintendoImageUrl(product.image) : ''; }
-        catch { product.image = ''; }
-      }
-      const games = products.slice(0, config.officialLimit).map((product, index) => {
+      const rankedProducts = products.slice(0, config.officialLimit);
+      await Promise.all(rankedProducts.map(async product => {
+        const previousImage = previousGames.get(product.id)?.image || '';
+        try {
+          product.image = product.image ? nintendoRankingCover(product.image) : previousImage;
+          if (previousImage && product.image !== previousImage && product.image.startsWith('https:'))
+            await nintendoCovers.get(product.image);
+        } catch {
+          product.image = previousImage;
+        }
+      }));
+      const games = rankedProducts.map((product, index) => {
         const rank = product.rank || index + 1;
-        const previousRank = previousRanks.get(product.id);
+        const previousRank = previousGames.get(product.id)?.rank;
         return {
           id: product.id,
           rank,

@@ -1,5 +1,14 @@
 import { chromium, request } from 'playwright';
 import sharp from 'sharp';
+import { createHash } from 'node:crypto';
+
+const rebirthCover = '/media/catalog/product/9/9/99d3f9086b7b97984916c93456752d6981d56dcab942421cf71cd45836a62b72';
+const rebirthFallback = '/assets/covers/ff7-rebirth-switch2-hk.jpg';
+const placeholderEtag = '"bc2cea4ed12eb759422002e83462701fb1afd75f979e5057e485e506b89a9814"';
+
+export function isNintendoPlaceholder(etag) {
+  return etag === placeholderEtag;
+}
 
 export function nintendoImageUrl(value) {
   const url=new URL(value);
@@ -7,6 +16,16 @@ export function nintendoImageUrl(value) {
     !/^\/media\/catalog\/product\/[a-zA-Z0-9_./-]+\.(?:png|jpe?g|webp)$/i.test(url.pathname))throw new Error('Invalid Nintendo image URL');
   url.pathname=url.pathname.replace(/\/cache\/[^/]+\//,'/');
   return url.href;
+}
+
+export function nintendoRankingCover(value) {
+  if (value === rebirthFallback) return value;
+  const url = nintendoImageUrl(value);
+  const pathname = new URL(url).pathname;
+  // 两个上游版本均曾返回 NO IMAGE，使用已核验的同商品官方封面。
+  if (pathname === rebirthCover + '_1793953093.jpg' || pathname === rebirthCover + '_1786119660.jpg')
+    return rebirthFallback;
+  return url;
 }
 
 export class NintendoCoverProxy {
@@ -49,6 +68,8 @@ export class NintendoCoverProxy {
           if(response.status()===200&&response.headers()['content-type']?.startsWith('image/')){
             const body=await sharp(await response.body(),{limitInputPixels:25000000})
               .resize(320,320,{fit:'inside',withoutEnlargement:true}).jpeg({quality:72}).toBuffer();
+            const etag = `"${createHash('sha256').update(body).digest('hex')}"`;
+            if (isNintendoPlaceholder(etag)) throw new Error('Nintendo cover is a placeholder');
             this.cache.set(url,{body,expires:Date.now()+600000});
             while(this.cache.size>64)this.cache.delete(this.cache.keys().next().value);
             return body;
