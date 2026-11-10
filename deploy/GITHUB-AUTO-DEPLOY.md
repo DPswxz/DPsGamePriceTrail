@@ -1,6 +1,6 @@
-# GitHub 自动部署
+# 通过 GitHub Actions 部署
 
-推送到 `DPswxz/DPsWeb1` 的 `main` 分支会触发 `Deploy production server`，也可在 GitHub Actions 手动运行。
+推送代码后，如需发布，在 `DPswxz/DPsWeb1` 的 Actions 页面打开 `Deploy production server`，点击 `Run workflow` 并选择 `main` 分支。
 
 服务器 Windows runner 标签为 `game-price-radar`，运行文件位于 `%USERPROFILE%\actions-runner-game-radar`。独立工作区安装依赖、运行测试，再调用 `scripts/Deploy-GamePulse.ps1`。
 
@@ -12,4 +12,4 @@ Runner 通过 Windows 启动目录的 `GameRadarGitHubRunner.vbs` 在用户登�
 
 远程开发完成后使用 `git push github main`。拉取此仓库的新电脑可直接推送它的 `origin main`。
 
-生产 workflow 不接收 pull request，只有 main 推送和手动触发能在服务器执行。应仅给予可信维护者仓库写入权限。
+生产工作流仅接受手动触发，部署任务只在 `main` 分支运行。应仅给予可信维护者仓库写入权限。

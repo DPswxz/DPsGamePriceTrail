@@ -146,7 +146,7 @@ git commit -m "说明本次修改"
 git push github main
 ```
 
-推送触发 GitHub Actions 的 `Deploy production server`，服务器 runner 安装依赖、测试并更新 Docker 服务，沿用服务器原有环境配置和数据库。部署结果见 GitHub Actions，详细说明见 [自动部署文档](deploy/GITHUB-AUTO-DEPLOY.md)。本机不需要启动网站、Docker 或 Cloudflare Tunnel。
+需要发布时，在 GitHub Actions 选择 `Deploy production server`，点击 `Run workflow` 并选择 `main`。服务器 runner 安装依赖、测试并更新 Docker 服务，沿用服务器原有环境配置和数据库。部署结果见 GitHub Actions，详细说明见 [部署文档](deploy/GITHUB-AUTO-DEPLOY.md)。本机不需要启动网站、Docker 或 Cloudflare Tunnel。
 
 ## 手动部署
 

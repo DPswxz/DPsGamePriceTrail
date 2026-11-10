@@ -4,7 +4,7 @@
 
 每次提交并推送时，Git 提交说明使用英文。
 
-本机仅用于修改、验证代码并在用户明确要求时推送 GitHub；生产项目运行在服务器上。每次修改网站并验证后，提供本地预览供用户检查。只有用户明确说“推送”后，才推送 `github` 远程的 `main` 分支，由 GitHub Actions 的 `Deploy production server` 工作流触发服务器更新。不要自动推送，不要在本机运行部署脚本或启动生产容器。
+本机仅用于修改、验证代码并在用户明确要求时推送 GitHub；生产项目运行在服务器上。每次修改网站并验证后，提供本地预览供用户检查。只有用户明确说“推送”后，才推送 `github` 远程的 `main` 分支。需要更新服务器时，在 GitHub Actions 手动运行 `Deploy production server`。不要自动推送，不要在本机运行部署脚本或启动生产容器。
 
 保留 `scripts/Deploy-GamePulse.ps1`，供服务器 runner 使用。服务器部署沿用生产目录的 `.env` 和 `deploy/data/`，不要删除生产数据。
 

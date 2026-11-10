@@ -1,8 +1,5 @@
 name: 验证测试与服务器部署
 on:
-  push:
-    branches: [main]
-  pull_request:
   workflow_dispatch:
 permissions:
   contents: read
