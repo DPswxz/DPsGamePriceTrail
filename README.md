@@ -146,7 +146,7 @@ git commit -m "说明本次修改"
 git push github main
 ```
 
-需要发布时，在 GitHub Actions 选择 `Deploy production server`，点击 `Run workflow` 并选择 `main`。服务器 runner 安装依赖、测试并更新 Docker 服务，沿用服务器原有环境配置和数据库。部署结果见 GitHub Actions，详细说明见 [部署文档](deploy/GITHUB-AUTO-DEPLOY.md)。本机不需要启动网站、Docker 或 Cloudflare Tunnel。
+发布时在目标服务器上按部署方式更新代码和服务，沿用生产目录的 `.env` 和 `deploy/data/`。
 
 ## 手动部署
 
@@ -172,7 +172,6 @@ npm ci
 npm test
 ```
 
-GitHub Actions 自动运行测试，并验证 Docker 镜像、Chromium 启动、同机部署、分离部署的接口转发和持久化图片访问。部署测试关闭启动采集，避免依赖官方网站实时响应。
 # 游戏名翻译
 
 在根目录 `.env` 设置 `GOOGLE_TRANSLATE_API_KEY`，部署后由收集器调用 Google Cloud Translation Basic，将新出现的日语或英语名称翻译为简体中文。现有中文译名优先，同名跨平台共用缓存，忽略商标符号、全角字符和多余空格的差异。
