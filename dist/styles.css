@@ -66,15 +66,7 @@
 .chart-ranges button.active{color:var(--mint);border-color:var(--tone-33);background:var(--tone-36)}
 .chart-coverage{margin:10px 0 0;color:var(--muted);font-size:11px}
 .history-empty{padding:20px;color:var(--tone-30)}
-.history-table-section{display:flex;flex-direction:column;gap:10px}
-.history-section-header{display:flex;justify-content:space-between;align-items:center}
-.history-section-header h4{margin:0;font-size:14px;color:var(--text)}
 .history-storage-badge{font-size:11px;color:var(--mint);background:rgba(142,196,240,.08);padding:3px 8px;border-radius:4px;font-family:"DM Mono"}
-.history-table-wrap{max-height:180px;overflow-y:auto;border:1px solid #20333d;border-radius:8px;background:#0b1419}
-.history-table{width:100%;border-collapse:collapse;font-size:13px;min-width:0}
-.history-table th{background:#101d24;position:sticky;top:0;padding:9px 14px;font-size:11px;color:var(--muted);border-bottom:1px solid #20333d}
-.history-table td{padding:9px 14px;border-bottom:1px solid #16242c;font-family:"DM Mono"}
-.history-table tr:hover{background:#112028}
 @media(max-width:640px){.modal-metrics{grid-template-columns:1fr 1fr}.price-modal-header{padding:18px}.price-modal-body{padding:0 18px 18px}}
 
 /* PS5 多版本折叠展开卡片与按钮样式 */
@@ -382,16 +374,6 @@ th.col-history[hidden], td.col-history[hidden] { display: none !important; }
   .chart-card{padding:10px;gap:8px}
   .chart-legend{font-size:9px;gap:8px;flex-wrap:wrap}
   .legend-item{gap:4px}
-  .history-table-wrap{max-height:240px}
-  .history-table,.history-table tbody{display:block}
-  .history-table thead{display:none}
-  .history-table tbody tr{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px 8px;padding:8px;border-bottom:1px solid #20333d}
-  .history-table td{display:block;min-width:0;border:0;padding:0!important;font-size:11px;line-height:1.5;overflow-wrap:anywhere}
-  .history-table td:first-child{grid-column:1;grid-row:1;color:var(--muted);font-size:10px}
-  .history-table td:nth-child(2){grid-column:2;grid-row:1;font-size:13px;text-align:right}
-  .history-table td:nth-child(3){grid-column:2;grid-row:2;text-align:right;font-size:10px}
-  .history-table td:nth-child(3)::before{content:'≈ ';color:var(--muted)}
-  .history-table .history-change{grid-column:1;grid-row:2}
 }
 @media(max-width:760px){
   #gameRows .hk-wide-row .mobile-wide-side .mobile-game-price .deal-chip{display:none}

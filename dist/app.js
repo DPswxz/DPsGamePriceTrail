@@ -5962,12 +5962,6 @@ function gameRecordMoney(game,value) {
   return `${code==='HKD'?'HK$':'¥'} ${Number(value).toLocaleString(code==='JPY'?'ja-JP':'zh-CN',{
     minimumFractionDigits:code==='JPY'?0:Number(value)%1?2:0,maximumFractionDigits:code==='JPY'?0:2})}`;
 }
-function gameRecordCny(game,value) {
-  if(value==null)return '';
-  if(!game.historyCurrency)return cny(value);
-  return `CN¥ ${(value*(state.rates[game.historyCurrency]||1)).toLocaleString('zh-CN',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
-}
-
 function getGameKey(game, platform) {
   const plat = platform || (state.platform === 'ps5' ? `ps5_${state.psStore}` : state.platform) || 'unknown';
   const idOrName = game.id || game.name;
@@ -6295,40 +6289,6 @@ async function openPriceModal(game, {updated=false}={}) {
   if (recCountEl) recCountEl.textContent = `${history.length} 条记录`;
 
   renderStepChart(history, game, $('#chartContainer'));
-
-  const tbody = $('#modalHistoryRows');
-  if (tbody) {
-    const reversed = [...history].reverse();
-    tbody.innerHTML = reversed.map((rec, idx) => {
-      const isLowest = rec.price === lowestPrice;
-      const cnyVal = gameRecordCny(game,rec.price);
-      let changeTag = '';
-      if (idx === reversed.length - 1) {
-        changeTag = `<span style="color:#66c0f4">● ${rec.note || '首次采集建档基准'}</span>`;
-      } else {
-        const nextInTime = reversed[idx + 1];
-        const diff = rec.price - nextInTime.price;
-        const notePrefix = rec.note ? `${rec.note} · ` : '';
-        if (diff < 0) {
-          const pct = Math.round(Math.abs(diff) / nextInTime.price * 100);
-          changeTag = `<span style="color:#ff6d9d">${notePrefix}降价 -${pct}% ${isLowest ? '(史低)' : ''}</span>`;
-        } else if (diff > 0) {
-          const pct = Math.round(diff / nextInTime.price * 100);
-          changeTag = `<span style="color:#66c0f4">${notePrefix}原价恢复 +${pct}%</span>`;
-        } else {
-          changeTag = `<span style="color:#657980">${rec.note || '价格持平'}</span>`;
-        }
-      }
-      return `
-        <tr>
-          <td data-label="记录时间">${escapeHtml(new Date(rec.date).toLocaleString('zh-CN'))}</td>
-          <td style="color:${isLowest ? 'var(--mint)' : '#edf7f4'};font-weight:600">${gameRecordMoney(game,rec.price)}</td>
-          <td data-label="折合人民币" style="color:#9baeb2">${cnyVal}</td>
-          <td data-label="变动" class="history-change">${changeTag}</td>
-        </tr>
-      `;
-    }).join('');
-  }
 
   modal.hidden = false;
   document.body.style.overflow = 'hidden';
